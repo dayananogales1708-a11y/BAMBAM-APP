@@ -1,0 +1,66 @@
+name: BAMBAM V29 - APK Android
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener el proyecto
+        uses: actions/checkout@v4
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Android SDK 35
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Preparar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Descomprimir BAMBAM V29 y preparar librerias locales
+        run: |
+          mkdir -p ensamblaje
+          unzip -q BAMBAM_FUENTE_V29.zip -d ensamblaje
+          mkdir -p ensamblaje/app/src/main/assets/libs
+          curl -fsSL --retry 3 https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js \
+            -o ensamblaje/app/src/main/assets/libs/pdf.min.js
+          curl -fsSL --retry 3 https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js \
+            -o ensamblaje/app/src/main/assets/libs/pdf.worker.min.js
+          curl -fsSL --retry 3 https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js \
+            -o ensamblaje/app/src/main/assets/libs/pdf-lib.min.js
+          test -s ensamblaje/app/src/main/assets/libs/pdf.min.js
+          test -s ensamblaje/app/src/main/assets/libs/pdf.worker.min.js
+          test -s ensamblaje/app/src/main/assets/libs/pdf-lib.min.js
+
+      - name: Compilar la nueva APK Android V29
+        working-directory: ensamblaje
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Preparar APK
+        run: cp ensamblaje/app/build/outputs/apk/debug/app-debug.apk BAMBAM.apk
+
+      - name: Guardar APK de prueba
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMBAM-V29-APK-Android
+          path: BAMBAM.apk
+          retention-days: 30
+
+      - name: Publicar APK beta en GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v29-beta-${{ github.run_number }}" BAMBAM.apk \
+            --title "BAMBAM V29 - icono original y descarga PNG HD" \
+            --notes "Version beta: motor nativo, PNG HD en galeria y 3000 cartones. Antes de distribuir, comprobar velocidad y nitidez en dispositivo real. Firma temporal de prueba."
