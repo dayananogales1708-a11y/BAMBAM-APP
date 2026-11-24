@@ -1,0 +1,68 @@
+name: Compilar BAMBAM APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener el proyecto de GitHub
+        uses: actions/checkout@v4
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Preparar Android
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android SDK 35
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+
+      - name: Preparar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Descomprimir BAMBAM y descargar lectores PDF locales
+        run: |
+          mkdir -p ensamblaje
+          unzip -q BAMBAM_FUENTE.zip -d ensamblaje
+          mkdir -p ensamblaje/app/src/main/assets/libs
+          curl -fsSL --retry 3 https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js \
+            -o ensamblaje/app/src/main/assets/libs/pdf.min.js
+          curl -fsSL --retry 3 https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js \
+            -o ensamblaje/app/src/main/assets/libs/pdf.worker.min.js
+          curl -fsSL --retry 3 https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js \
+            -o ensamblaje/app/src/main/assets/libs/pdf-lib.min.js
+          test -s ensamblaje/app/src/main/assets/libs/pdf.min.js
+          test -s ensamblaje/app/src/main/assets/libs/pdf.worker.min.js
+          test -s ensamblaje/app/src/main/assets/libs/pdf-lib.min.js
+
+      - name: Compilar APK Android
+        working-directory: ensamblaje
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Preparar APK descargable
+        run: cp ensamblaje/app/build/outputs/apk/debug/app-debug.apk BAMBAM.apk
+
+      - name: Guardar APK en los archivos de GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: BAMBAM-APK-Android
+          path: BAMBAM.apk
+          retention-days: 30
+
+      - name: Publicar APK para compartir con contactos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v1.0-beta-${{ github.run_number }}" BAMBAM.apk \
+            --title "BAMBAM Android - prueba ${{ github.run_number }}" \
+            --notes "APK de prueba Android 10+. Incluye los 3.000 cartones y guarda PNG en Imágenes/BAMBAM. Firma temporal de prueba: para futuras actualizaciones se debe configurar firma permanente."
