@@ -1,0 +1,35 @@
+name: Publicar BAMBAM V32 WEB RAPIDA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  publicar:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Obtener proyecto
+        uses: actions/checkout@v4
+      - name: Descomprimir aplicacion V32
+        run: |
+          mkdir -p sitio
+          unzip -q BAMBAM_WEB_V32_RAPIDA.zip -d sitio
+          test -f sitio/index.html
+          test -f sitio/manifest.webmanifest
+          test -f sitio/service-worker.js
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Subir sitio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: sitio
+      - name: Publicar sitio
+        id: deployment
+        uses: actions/deploy-pages@v4
